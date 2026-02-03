@@ -1,7 +1,7 @@
 {
-  "name": "3d-sports-simulation",
+  "name": "3d-physics-demonstration",
   "version": "1.0.0",
-  "description": "3D Sports Physics Simulation",
+  "description": "3D Physics Trajectory Demonstration",
   "type": "module",
   "scripts": {
     "dev": "vite",
