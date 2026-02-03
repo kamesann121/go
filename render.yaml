@@ -1,11 +1,9 @@
 services:
-  - type: web
+  - type: static
     name: 3d-sports-simulation
-    runtime: node
-    plan: free
     buildCommand: npm install && npm run build
-    # StaticPublishPathではなく、サーバーを起動するコマンドを書く
-    startCommand: npx vite preview --host 0.0.0.0 --port $PORT
-    envVars:
-      - key: NODE_VERSION
-        value: 20.0.0
+    publishPath: ./dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
