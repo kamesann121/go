@@ -1,8 +1,9 @@
 services:
-  - type: static
-    name: 3d-sports-simulation
+  - type: web_static
+    name: 3d-physics-demo
+    env: node
     buildCommand: npm install && npm run build
-    publishPath: ./dist
+    staticPublishPath: ./dist
     routes:
       - type: rewrite
         source: /*
