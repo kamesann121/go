@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>新しいタブ</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    html, body {
+      height: 100%;
+      overflow: hidden;
+      background: #000;
+      -webkit-touch-callout: none;
+      -webkit-user-select: none;
+      user-select: none;
+      touch-action: none;
+    }
+    canvas {
+      display: block;
+      touch-action: none;
+    }
+
+    /* ── UI オーバーレイ ── */
+    #ui-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 10;
+    }
+
+    /* パワーゲージ */
+    #power-container {
+      position: absolute;
+      bottom: calc(env(safe-area-inset-bottom, 0px) + 40px);
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      pointer-events: auto;
+    }
+    #power-label {
+      color: #fff;
+      font-family: 'Segoe UI', sans-serif;
+      font-size: 14px;
+      text-shadow: 0 1px 4px rgba(0,0,0,0.7);
+      min-width: 60px;
+      text-align: right;
+    }
+    #power-bar-bg {
+      width: 200px;
+      height: 18px;
+      background: rgba(0,0,0,0.5);
+      border: 1px solid rgba(255,255,255,0.3);
+      border-radius: 9px;
+      overflow: hidden;
+    }
+    #power-bar {
+      width: 0%;
+      height: 100%;
+      background: linear-gradient(90deg, #4caf50, #ffeb3b, #f44336);
+      transition: width 0.05s;
+      border-radius: 9px;
+    }
+
+    /* ホール情報 */
+    #hole-info {
+      position: absolute;
+      top: env(safe-area-inset-top, 20px);
+      left: 20px;
+      color: #fff;
+      font-family: 'Segoe UI', sans-serif;
+      text-shadow: 0 1px 4px rgba(0,0,0,0.7);
+    }
+    #hole-info h2 {
+      font-size: 22px;
+      font-weight: 600;
+    }
+    #hole-info p {
+      font-size: 15px;
+      opacity: 0.85;
+      margin-top: 2px;
+    }
+
+    /* ショット回数 */
+    #shot-info {
+      position: absolute;
+      top: env(safe-area-inset-top, 20px);
+      right: 20px;
+      color: #fff;
+      font-family: 'Segoe UI', sans-serif;
+      text-align: right;
+      text-shadow: 0 1px 4px rgba(0,0,0,0.7);
+    }
+    #shot-info h2 {
+      font-size: 22px;
+      font-weight: 600;
+    }
+    #shot-info p {
+      font-size: 15px;
+      opacity: 0.85;
+      margin-top: 2px;
+    }
+
+    /* 操作ガイド */
+    #controls-guide {
+      position: absolute;
+      bottom: calc(env(safe-area-inset-bottom, 0px) + 90px);
+      left: 50%;
+      transform: translateX(-50%);
+      color: rgba(255,255,255,0.75);
+      font-family: 'Segoe UI', sans-serif;
+      font-size: 13px;
+      text-align: center;
+      text-shadow: 0 1px 3px rgba(0,0,0,0.6);
+      pointer-events: none;
+      width: 90%;
+    }
+    /* モバイル非モバイル切り替え */
+    .guide-desktop { display: inline; }
+    .guide-mobile  { display: none; }
+    @media (hover: none) and (pointer: coarse) {
+      .guide-desktop { display: none; }
+      .guide-mobile  { display: inline; }
+    }
+
+    /* クリア通知 */
+    #clear-message {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      display: none;
+      color: #fff;
+      font-family: 'Segoe UI', sans-serif;
+      text-align: center;
+      background: rgba(0,0,0,0.6);
+      padding: 30px 50px;
+      border-radius: 16px;
+      backdrop-filter: blur(6px);
+    }
+    #clear-message h2 {
+      font-size: 36px;
+      margin-bottom: 8px;
+    }
+    #clear-message p {
+      font-size: 18px;
+      opacity: 0.85;
+    }
+    #clear-message button {
+      margin-top: 18px;
+      padding: 10px 28px;
+      font-size: 16px;
+      border: none;
+      border-radius: 8px;
+      background: #4caf50;
+      color: #fff;
+      cursor: pointer;
+      pointer-events: auto;
+    }
+    #clear-message button:hover {
+      background: #43a047;
+    }
+
+    /* 方向指示線の説明 */
+    #aim-hint {
+      position: absolute;
+      bottom: calc(env(safe-area-inset-bottom, 0px) + 115px);
+      left: 50%;
+      transform: translateX(-50%);
+      color: rgba(255,255,255,0.5);
+      font-family: 'Segoe UI', sans-serif;
+      font-size: 12px;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div id="ui-overlay">
+    <div id="hole-info">
+      <h2>Hole 1</h2>
+      <p>Par 3</p>
+    </div>
+    <div id="shot-info">
+      <h2>Shots</h2>
+      <p>0</p>
+    </div>
+    <div id="controls-guide">
+      <span class="guide-desktop">左右クリック＋ドラッグ：方向調整 　マウスホールド＋リリース：ショット（長押しで強く）</span>
+      <span class="guide-mobile">1指スワイプ：エイム＋カメラ　　2指長押し→離す：ショット　　ピンチ：ズーム</span>
+    </div>
+    <div id="aim-hint">▼ 白い線がショット方向です</div>
+    <div id="power-container">
+      <span id="power-label">Power: 0%</span>
+      <div id="power-bar-bg">
+        <div id="power-bar"></div>
+      </div>
+    </div>
+    <div id="clear-message">
+      <h2>✓ Complete!</h2>
+      <p id="clear-shots-text">Shots: 0</p>
+      <button id="next-hole-btn">Next Hole</button>
+    </div>
+  </div>
+
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>
