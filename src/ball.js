@@ -31,7 +31,7 @@ export class Ball {
         '/models/golfball.glb',
         (gltf) => {
           this.mesh = gltf.scene;
-          this.mesh.scale.set(0.08, 0.08, 0.08); // サイズ調整（5分の1に縮小）
+          this.mesh.scale.set(0.4, 0.4, 0.4); // サイズ調整
           this.mesh.position.copy(this.startPos);
 
           // 影を投げるように設定
