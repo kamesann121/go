@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { SimplexNoise } from 'simplex-noise';
+import { createNoise2D } from 'simplex-noise';
 
 // コース設定
 export const COURSE_CONFIG = {
@@ -14,7 +14,7 @@ export const COURSE_CONFIG = {
 };
 
 export function createCourse(scene, seed = 42) {
-  const simplex = new SimplexNoise(seed);
+  const noise2D = createNoise2D();
 
   // ── 地形ジオメトリ ──
   const geo = new THREE.PlaneGeometry(
@@ -51,7 +51,7 @@ export function createCourse(scene, seed = 42) {
       // ノイズで地形を生成
       const nx = x / 60;
       const nz = z / 60;
-      y = simplex.noise2D(nx, nz) * COURSE_CONFIG.maxHeight;
+      y = noise2D(nx, nz) * COURSE_CONFIG.maxHeight;
 
       // グリーンの外側を滑らかにブレンド（エッジが急にならないように）
       const blendDist = 5;
