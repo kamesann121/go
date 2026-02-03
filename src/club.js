@@ -16,7 +16,7 @@ export class Club {
         '/models/golf.glb',
         (gltf) => {
           this.mesh = gltf.scene;
-          this.mesh.scale.set(0.5, 0.5, 0.5);
+          this.mesh.scale.set(0.1, 0.1, 0.1); // サイズ調整（5分の1に縮小）
 
           this.mesh.traverse((child) => {
             if (child.isMesh) {
