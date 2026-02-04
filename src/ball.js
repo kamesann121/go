@@ -107,7 +107,7 @@ export class Ball {
   }
 
   // 物理シミュレーション更新
-  update(dt, getHeight) {
+  update(dt, getHeight, walls) {
     if (!this.isMoving) return;
 
     const pos = this.mesh.position;
@@ -119,6 +119,40 @@ export class Ball {
     pos.x += this.velocity.x * dt;
     pos.y += this.velocity.y * dt;
     pos.z += this.velocity.z * dt;
+
+    // 壁との衝突判定（インポートが必要）
+    if (walls && walls.length > 0) {
+      // checkWallCollision を course.js からインポートして使う
+      // ここでは簡易版を実装
+      for (const wall of walls) {
+        if (!wall.userData || !wall.userData.box) continue;
+        
+        const ballBox = new THREE.Box3(
+          new THREE.Vector3(pos.x - this.radius, pos.y - this.radius, pos.z - this.radius),
+          new THREE.Vector3(pos.x + this.radius, pos.y + this.radius, pos.z + this.radius)
+        );
+        
+        if (wall.userData.box.intersectsBox(ballBox)) {
+          // 壁の中心
+          const wallCenter = new THREE.Vector3();
+          wall.userData.box.getCenter(wallCenter);
+          
+          // 反射方向
+          const normal = new THREE.Vector3().subVectors(pos, wallCenter);
+          normal.y = 0;
+          normal.normalize();
+          
+          // 反射
+          const dot = this.velocity.dot(normal);
+          this.velocity.x -= 2 * dot * normal.x;
+          this.velocity.z -= 2 * dot * normal.z;
+          this.velocity.multiplyScalar(0.75); // エネルギー損失
+          
+          // 押し出し
+          pos.add(normal.multiplyScalar(0.3));
+        }
+      }
+    }
 
     // 地面との衝突
     const groundY = getHeight(pos.x, pos.z) + this.radius;
