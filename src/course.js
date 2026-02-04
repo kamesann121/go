@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-import { createNoise2D } from 'simplex-noise';
 
 // コース設定
 export const COURSE_CONFIG = {
@@ -7,170 +6,168 @@ export const COURSE_CONFIG = {
   depth: 200,
   segments: 200,
   maxHeight: 4,
-  greenRadius: 8,       // グリーン半径
-  holeRadius: 0.25,     // ホール半径
-  startOffset: { x: 0, z: 80 },   // ボール開始位置
-  holeOffset: { x: 0, z: -70 },   // ホール位置
+  greenRadius: 8,
+  holeRadius: 0.25,
+  startOffset: { x: 0, z: 85 },
+  holeOffset: { x: 0, z: -80 },
 };
 
 export function createCourse(scene, seed = 42) {
-  const noise2D = createNoise2D();
-
-  // ── 地形ジオメトリ ──
-  const geo = new THREE.PlaneGeometry(
+  // ── ベースの平面（フラット） ──
+  const baseGeo = new THREE.PlaneGeometry(
     COURSE_CONFIG.width,
     COURSE_CONFIG.depth,
-    COURSE_CONFIG.segments,
-    COURSE_CONFIG.segments
+    2, 2
   );
-  geo.rotateX(-Math.PI / 2); // 水平にする
-
-  const posArr = geo.attributes.position;
-  const colorArr = [];
-
-  for (let i = 0; i < posArr.count; i++) {
-    let x = posArr.getX(i);
-    let z = posArr.getZ(i);
-
-    // グリーン領域の距離チェック
-    const dx = x - COURSE_CONFIG.holeOffset.x;
-    const dz = z - COURSE_CONFIG.holeOffset.z;
-    const distToHole = Math.sqrt(dx * dx + dz * dz);
-
-    // ボール開始位置の周りもフラット
-    const sx = x - COURSE_CONFIG.startOffset.x;
-    const sz = z - COURSE_CONFIG.startOffset.z;
-    const distToStart = Math.sqrt(sx * sx + sz * sz);
-
-    let y = 0;
-
-    if (distToHole < COURSE_CONFIG.greenRadius || distToStart < 4) {
-      // グリーン・スタート領域はフラット
-      y = 0;
-    } else {
-      // ノイズで地形を生成
-      const nx = x / 60;
-      const nz = z / 60;
-      y = noise2D(nx, nz) * COURSE_CONFIG.maxHeight;
-
-      // グリーンの外側を滑らかにブレンド（エッジが急にならないように）
-      const blendDist = 5;
-      if (distToHole < COURSE_CONFIG.greenRadius + blendDist) {
-        const t = (distToHole - COURSE_CONFIG.greenRadius) / blendDist;
-        y *= t;
-      }
-      if (distToStart < 4 + blendDist) {
-        const t = (distToStart - 4) / blendDist;
-        y *= t;
-      }
-    }
-
-    posArr.setY(i, y);
-
-    // ── 頂点カラー（芝の色を高さで変える） ──
-    let r, g, b;
-    if (distToHole < COURSE_CONFIG.greenRadius) {
-      // グリーン：濃い緑
-      r = 0.12; g = 0.55; b = 0.15;
-    } else if (y > 1.5) {
-      // 高い場所：岩・砂地
-      r = 0.55; g = 0.50; b = 0.38;
-    } else if (y < -0.8) {
-      // 低い場所：水
-      r = 0.15; g = 0.35; b = 0.60;
-    } else {
-      // 通常の芝
-      const t = (y + COURSE_CONFIG.maxHeight) / (COURSE_CONFIG.maxHeight * 2);
-      r = 0.18 + t * 0.12;
-      g = 0.50 + t * 0.12;
-      b = 0.10 + t * 0.05;
-    }
-    colorArr.push(r, g, b);
-  }
-
-  geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(colorArr), 3));
-  geo.computeVertexNormals();
-
-  // ── マテリアル（テクスチャ付き芝生） ──
-  const mat = new THREE.MeshStandardMaterial({
-    color: 0x4a7c3a,           // ベース芝色
-    roughness: 0.95,           // 粗さ（芝っぽく）
-    metalness: 0.0,            // 金属感なし
-    flatShading: false,
+  baseGeo.rotateX(-Math.PI / 2);
+  
+  const baseMat = new THREE.MeshStandardMaterial({
+    color: 0x4a7c3a,
+    roughness: 0.95,
+    metalness: 0.0,
   });
-
-  // 頂点カラーも混ぜる（高さによる色変化を保持）
-  mat.vertexColors = true;
-
-  const terrain = new THREE.Mesh(geo, mat);
+  
+  const terrain = new THREE.Mesh(baseGeo, baseMat);
   terrain.receiveShadow = true;
   scene.add(terrain);
 
-  // ── ホールの穴（黒い円） ──
-  const holeGeo = new THREE.CircleGeometry(COURSE_CONFIG.holeRadius, 32);
-  holeGeo.rotateX(-Math.PI / 2);
-  const holeMat = new THREE.MeshBasicMaterial({ color: 0x111111 });
+  // ── コースレイアウト（壁と通路）──
+  // 壁のマテリアル
+  const wallMat = new THREE.MeshStandardMaterial({
+    color: 0x8B4513, // 茶色
+    roughness: 0.7,
+  });
+
+  const walls = [];
+
+  // スタート地点の囲い（U字型）
+  walls.push(createWall(scene, -15, 85, 30, 2, wallMat)); // 左壁
+  walls.push(createWall(scene, 15, 85, 30, 2, wallMat));  // 右壁
+  walls.push(createWall(scene, 0, 70, 2, 30, wallMat));   // 前壁
+
+  // 最初の通路（狭い）
+  walls.push(createWall(scene, -10, 50, 40, 2, wallMat)); // 左壁
+  walls.push(createWall(scene, 10, 50, 40, 2, wallMat));  // 右壁
+
+  // L字カーブ（右に曲がる）
+  walls.push(createWall(scene, 10, 30, 2, 20, wallMat));  // 右縦壁
+  walls.push(createWall(scene, 25, 20, 30, 2, wallMat));  // 右横壁
+  walls.push(createWall(scene, -10, 20, 2, 20, wallMat)); // 左縦壁
+
+  // 中間の広場（バンパー配置）
+  walls.push(createWall(scene, 40, 10, 2, 20, wallMat));
+  walls.push(createWall(scene, -10, 10, 2, 20, wallMat));
+  
+  // 中央のバンパー（三角配置）
+  walls.push(createWall(scene, 15, 5, 8, 2, wallMat));
+  walls.push(createWall(scene, 15, -5, 8, 2, wallMat));
+
+  // 最後の通路（ジグザグ）
+  walls.push(createWall(scene, 40, -10, 2, 20, wallMat));
+  walls.push(createWall(scene, 25, -20, 30, 2, wallMat));
+  walls.push(createWall(scene, 10, -30, 2, 20, wallMat));
+  walls.push(createWall(scene, -5, -40, 30, 2, wallMat));
+  walls.push(createWall(scene, -20, -50, 2, 20, wallMat));
+
+  // ゴール地点の囲い
+  walls.push(createWall(scene, -15, -70, 20, 2, wallMat));
+  walls.push(createWall(scene, 15, -70, 20, 2, wallMat));
+  walls.push(createWall(scene, 0, -90, 2, 20, wallMat));
+
+  // ── ゴールの穴 ──
+  // 白いリング（カップの縁）
+  const ringGeo = new THREE.RingGeometry(COURSE_CONFIG.holeRadius, COURSE_CONFIG.holeRadius + 0.05, 32);
+  ringGeo.rotateX(-Math.PI / 2);
+  const ringMat = new THREE.MeshStandardMaterial({ color: 0xffffff, side: THREE.DoubleSide });
+  const ring = new THREE.Mesh(ringGeo, ringMat);
+  ring.position.set(COURSE_CONFIG.holeOffset.x, 0.02, COURSE_CONFIG.holeOffset.z);
+  scene.add(ring);
+
+  // 穴の内部（黒い円筒）
+  const holeGeo = new THREE.CylinderGeometry(COURSE_CONFIG.holeRadius, COURSE_CONFIG.holeRadius * 0.9, 0.5, 32);
+  const holeMat = new THREE.MeshStandardMaterial({ color: 0x000000 });
   const holeMesh = new THREE.Mesh(holeGeo, holeMat);
-  holeMesh.position.set(
-    COURSE_CONFIG.holeOffset.x,
-    0.01,
-    COURSE_CONFIG.holeOffset.z
-  );
+  holeMesh.position.set(COURSE_CONFIG.holeOffset.x, -0.25, COURSE_CONFIG.holeOffset.z);
   scene.add(holeMesh);
 
   // ── フラグポール ──
   const poleGeo = new THREE.CylinderGeometry(0.08, 0.08, 8, 8);
-  const poleMat = new THREE.MeshLambertMaterial({ color: 0xffff00 }); // 黄色で目立つ
+  const poleMat = new THREE.MeshLambertMaterial({ color: 0xffff00 });
   const pole = new THREE.Mesh(poleGeo, poleMat);
-  pole.position.set(
-    COURSE_CONFIG.holeOffset.x,
-    4,
-    COURSE_CONFIG.holeOffset.z
-  );
+  pole.position.set(COURSE_CONFIG.holeOffset.x, 4, COURSE_CONFIG.holeOffset.z);
   pole.castShadow = true;
   scene.add(pole);
 
-  // フラグ布（より大きく）
+  // フラグ布
   const flagGeo = new THREE.PlaneGeometry(2.5, 1.5);
-  const flagMat = new THREE.MeshLambertMaterial({ color: 0xff0000, side: THREE.DoubleSide }); // 赤で目立つ
+  const flagMat = new THREE.MeshLambertMaterial({ color: 0xff0000, side: THREE.DoubleSide });
   const flag = new THREE.Mesh(flagGeo, flagMat);
-  flag.position.set(
-    COURSE_CONFIG.holeOffset.x + 1.25,
-    7.2,
-    COURSE_CONFIG.holeOffset.z
-  );
+  flag.position.set(COURSE_CONFIG.holeOffset.x + 1.25, 7.2, COURSE_CONFIG.holeOffset.z);
   flag.rotation.y = Math.PI / 4;
   scene.add(flag);
 
-  return { terrain, holeMesh, pole, flag };
+  return { terrain, holeMesh, pole, flag, walls };
 }
 
-// 地形の高さを特定の (x, z) で取得する関数（Raycaster使用で正確）
-export function getTerrainHeight(terrain, x, z) {
-  const raycaster = new THREE.Raycaster();
-  const origin = new THREE.Vector3(x, 100, z); // 上から下に向かってレイを飛ばす
-  const direction = new THREE.Vector3(0, -1, 0);
+// 壁を作成するヘルパー関数
+function createWall(scene, x, z, width, depth, material) {
+  const height = 3;
+  const wallGeo = new THREE.BoxGeometry(width, height, depth);
+  const wall = new THREE.Mesh(wallGeo, material);
+  wall.position.set(x, height / 2, z);
+  wall.castShadow = true;
+  wall.receiveShadow = true;
   
-  raycaster.set(origin, direction);
-  const intersects = raycaster.intersectObject(terrain);
+  // 物理用のバウンディングボックス（ボールの衝突判定に使う）
+  wall.userData.isWall = true;
+  wall.userData.box = new THREE.Box3().setFromObject(wall);
   
-  if (intersects.length > 0) {
-    return intersects[0].point.y;
-  }
-  
-  // レイが当たらなかった場合はフォールバック（最近傍探索）
-  const pos = terrain.geometry.attributes.position;
-  let closestDist = Infinity;
-  let closestY = 0;
+  scene.add(wall);
+  return wall;
+}
 
-  for (let i = 0; i < pos.count; i++) {
-    const vx = pos.getX(i);
-    const vz = pos.getZ(i);
-    const dist = (vx - x) ** 2 + (vz - z) ** 2;
-    if (dist < closestDist) {
-      closestDist = dist;
-      closestY = pos.getY(i);
+// 地形の高さを取得（フラットなので常に0を返す）
+export function getTerrainHeight(terrain, x, z) {
+  // 範囲外チェック
+  const halfW = COURSE_CONFIG.width / 2;
+  const halfD = COURSE_CONFIG.depth / 2;
+  if (x < -halfW || x > halfW || z < -halfD || z > halfD) {
+    return -10; // 範囲外は深い穴
+  }
+  return 0; // フラットな地面
+}
+
+// 壁との衝突判定
+export function checkWallCollision(walls, ballPos, ballRadius, ballVelocity) {
+  const ballBox = new THREE.Box3(
+    new THREE.Vector3(ballPos.x - ballRadius, ballPos.y - ballRadius, ballPos.z - ballRadius),
+    new THREE.Vector3(ballPos.x + ballRadius, ballPos.y + ballRadius, ballPos.z + ballRadius)
+  );
+
+  for (const wall of walls) {
+    if (wall.userData.box.intersectsBox(ballBox)) {
+      // 衝突した！跳ね返り方向を計算
+      const wallCenter = new THREE.Vector3();
+      wall.userData.box.getCenter(wallCenter);
+      
+      // ボールから壁の中心へのベクトル
+      const normal = new THREE.Vector3().subVectors(ballPos, wallCenter);
+      normal.y = 0; // 水平成分のみ
+      normal.normalize();
+      
+      // 反射ベクトルを計算（入射角 = 反射角）
+      const dot = ballVelocity.dot(normal);
+      ballVelocity.x -= 2 * dot * normal.x;
+      ballVelocity.z -= 2 * dot * normal.z;
+      
+      // エネルギー損失（跳ね返りで少し減速）
+      ballVelocity.multiplyScalar(0.8);
+      
+      // ボールを壁の外に押し出す
+      ballPos.add(normal.multiplyScalar(0.2));
+      
+      return true;
     }
   }
-  return closestY;
+  return false;
 }
