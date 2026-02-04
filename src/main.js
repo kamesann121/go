@@ -50,9 +50,9 @@ function nextHole() {
   scene.remove(courseObjects.holeMesh);
   scene.remove(courseObjects.pole);
   scene.remove(courseObjects.flag);
+  courseObjects.walls.forEach(w => scene.remove(w));
 
-  // 新しいコース生成（シード変える）
-  courseSeed += 1;
+  // 新しいコース生成（同じレイアウト）
   courseObjects = createCourse(scene, courseSeed);
 
   // ボールリセット
@@ -96,7 +96,7 @@ async function init() {
     lastTime = now;
 
     // 物理更新
-    ball.update(dt, getHeight);
+    ball.update(dt, getHeight, courseObjects.walls);
 
     // 範囲外チェック → リセット
     if (ball.isOutOfBounds()) {
