@@ -114,24 +114,24 @@ export function createCourse(scene, seed = 42) {
   scene.add(holeMesh);
 
   // ── フラグポール ──
-  const poleGeo = new THREE.CylinderGeometry(0.04, 0.04, 3, 8);
-  const poleMat = new THREE.MeshLambertMaterial({ color: 0xcccccc });
+  const poleGeo = new THREE.CylinderGeometry(0.08, 0.08, 8, 8);
+  const poleMat = new THREE.MeshLambertMaterial({ color: 0xffff00 }); // 黄色で目立つ
   const pole = new THREE.Mesh(poleGeo, poleMat);
   pole.position.set(
     COURSE_CONFIG.holeOffset.x,
-    1.5,
+    4,
     COURSE_CONFIG.holeOffset.z
   );
   pole.castShadow = true;
   scene.add(pole);
 
-  // フラグ布
-  const flagGeo = new THREE.PlaneGeometry(1.2, 0.7);
-  const flagMat = new THREE.MeshLambertMaterial({ color: 0xff3333, side: THREE.DoubleSide });
+  // フラグ布（より大きく）
+  const flagGeo = new THREE.PlaneGeometry(2.5, 1.5);
+  const flagMat = new THREE.MeshLambertMaterial({ color: 0xff0000, side: THREE.DoubleSide }); // 赤で目立つ
   const flag = new THREE.Mesh(flagGeo, flagMat);
   flag.position.set(
-    COURSE_CONFIG.holeOffset.x + 0.6,
-    2.85,
+    COURSE_CONFIG.holeOffset.x + 1.25,
+    7.2,
     COURSE_CONFIG.holeOffset.z
   );
   flag.rotation.y = Math.PI / 4;
