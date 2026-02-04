@@ -174,13 +174,13 @@ export class Ball {
     // メッシュ位置を物理位置に同期
     this.mesh.position.copy(this.physicsPosition);
 
-    // 転がりアニメーション（メッシュの回転のみ、位置には影響なし）
-    const speed = Math.sqrt(this.velocity.x ** 2 + this.velocity.z ** 2);
-    if (speed > 0.01) {
-      const axis = new THREE.Vector3(-this.velocity.z, 0, this.velocity.x).normalize();
-      const angle = (speed * dt) / this.radius;
-      this.mesh.rotateOnWorldAxis(axis, angle);
-    }
+    // 転がりアニメーションは一旦オフ（回転が位置に影響する可能性があるため）
+    // const speed = Math.sqrt(this.velocity.x ** 2 + this.velocity.z ** 2);
+    // if (speed > 0.01) {
+    //   const axis = new THREE.Vector3(-this.velocity.z, 0, this.velocity.x).normalize();
+    //   const angle = (speed * dt) / this.radius;
+    //   this.mesh.rotateOnWorldAxis(axis, angle);
+    // }
 
     // 停止判定
     const totalSpeed = this.velocity.length();
