@@ -25,12 +25,16 @@ export function createScene() {
   document.body.appendChild(renderer.domElement);
 
   // ── 光源 ──
-  // アンビエント光
-  const ambient = new THREE.AmbientLight(0xffffff, 0.5);
+  // 環境光（全体を明るく）
+  const ambient = new THREE.AmbientLight(0xffffff, 0.4);
   scene.add(ambient);
 
+  // 半球光（空と地面の色）
+  const hemiLight = new THREE.HemisphereLight(0x87ceeb, 0x4a7c3a, 0.6);
+  scene.add(hemiLight);
+
   // 太陽光（平行光）
-  const sun = new THREE.DirectionalLight(0xfff5e0, 1.0);
+  const sun = new THREE.DirectionalLight(0xfff5e0, 1.2);
   sun.position.set(50, 80, 30);
   sun.castShadow = true;
   sun.shadow.mapSize.width = 2048;
@@ -42,11 +46,6 @@ export function createScene() {
   sun.shadow.camera.top = 60;
   sun.shadow.camera.bottom = -60;
   scene.add(sun);
-
-  // 補助光（柔らかい影になるように）
-  const fill = new THREE.DirectionalLight(0xd0e8ff, 0.3);
-  fill.position.set(-30, 20, -20);
-  scene.add(fill);
 
   // ── リサイズハンドラ ──
   window.addEventListener('resize', () => {
