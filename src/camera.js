@@ -4,8 +4,8 @@ export class CameraController {
   constructor(camera) {
     this.camera = camera;
 
-    // 軌道パラメータ
-    this.spherical = new THREE.Spherical(40, Math.PI / 3.5, 0);
+    // 軌道パラメータ（コース全体が見やすいように上から）
+    this.spherical = new THREE.Spherical(60, Math.PI / 4, 0);
     this.target = new THREE.Vector3(0, 0, 0);
     this.currentTarget = new THREE.Vector3(0, 0, 0);
 
@@ -143,9 +143,15 @@ export class CameraController {
   setTarget(pos) { this.target.copy(pos); }
 
   update() {
-    this.currentTarget.lerp(this.target, 0.06);
-    const offset = new THREE.Vector3().setFromSpherical(this.spherical);
-    this.camera.position.copy(this.currentTarget).add(offset);
+    // ターゲット位置を滑らかに補間
+    this.currentTarget.lerp(this.target, 0.1);
+
+    // カメラ位置を spherical 座標から計算（currentTarget を中心に）
+    const camPos = new THREE.Vector3();
+    camPos.setFromSpherical(this.spherical);
+    camPos.add(this.currentTarget); // ターゲット位置を中心にオフセット
+
+    this.camera.position.copy(camPos);
     this.camera.lookAt(this.currentTarget);
   }
 }
