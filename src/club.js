@@ -5,8 +5,8 @@ export class Club {
   constructor(scene) {
     this.scene = scene;
     this.mesh = null;
-    this.aimLine = null;        // 方向指示線
-    this.aimDirection = new THREE.Vector3(0, 0, -1); // デフォルト方向
+    this.aimLine = null;
+    this.aimDirection = new THREE.Vector3(0, 0, -1);
   }
 
   async load() {
@@ -16,10 +16,7 @@ export class Club {
         '/models/golf.glb',
         (gltf) => {
           this.mesh = gltf.scene;
-          this.mesh.scale.set(0.02, 0.02, 0.02); // サイズ調整（大幅縮小）
-          
-          // ドライバーを立てる（モデルが横倒れの場合は回転）
-          this.mesh.rotation.x = -Math.PI / 2; // 90度回転で立たせる
+          this.mesh.scale.set(0.02, 0.02, 0.02);
 
           this.mesh.traverse((child) => {
             if (child.isMesh) {
@@ -42,7 +39,6 @@ export class Club {
     });
   }
 
-  // GLBが読み込めない場合のフォールバック
   _createFallbackClub() {
     const group = new THREE.Group();
 
@@ -66,10 +62,8 @@ export class Club {
     this.scene.add(this.mesh);
   }
 
-  // 方向指示線（エイムライン）を作成
   _createAimLine() {
     const mat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.7 });
-    // 線のポイント配列で作る
     const points = [
       new THREE.Vector3(0, 0, 0),
       new THREE.Vector3(0, 0, -15),
@@ -79,32 +73,38 @@ export class Club {
     this.scene.add(this.aimLine);
   }
 
-  // クラブとエイムラインをボール周りに配置する
+  // クラブとエイムラインをボール周りに配置（エイム方向に完全一致）
   update(ballPosition, aimDirection) {
     if (!this.mesh) return;
 
     this.aimDirection.copy(aimDirection).normalize();
 
-    // クラブの位置：ボールの後ろに配置
+    // クラブの位置：ボールの後ろ＋少し上
     const clubOffset = this.aimDirection.clone().multiplyScalar(-1.2);
     this.mesh.position.set(
       ballPosition.x + clubOffset.x,
-      ballPosition.y + 0.3,
+      ballPosition.y + 0.5,  // 地面から少し浮かせる
       ballPosition.z + clubOffset.z
     );
 
-    // クラブの向き（エイム方向へ）
-    const angle = Math.atan2(this.aimDirection.x, this.aimDirection.z);
-    this.mesh.rotation.set(0, angle, 0);
+    // クラブの向き：エイム方向を向く
+    // Y軸周りの角度を計算
+    const angleY = Math.atan2(this.aimDirection.x, this.aimDirection.z);
+    
+    // クラブをリセットしてから正しい向きに
+    this.mesh.rotation.set(0, 0, 0);
+    this.mesh.rotation.y = angleY;
+    
+    // 少し傾ける（ドライバーっぽく）
+    this.mesh.rotation.x = -0.3; // 前傾
 
     // エイムライン更新
     if (this.aimLine) {
       this.aimLine.position.set(ballPosition.x, ballPosition.y + 0.05, ballPosition.z);
-      this.aimLine.rotation.set(0, angle, 0);
+      this.aimLine.rotation.set(0, angleY, 0);
     }
   }
 
-  // ショット中はクラブとラインを숨す
   setVisible(v) {
     if (this.mesh) this.mesh.visible = v;
     if (this.aimLine) this.aimLine.visible = v;
