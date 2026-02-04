@@ -13,8 +13,7 @@ export function createScene() {
     0.1,
     500
   );
-  camera.position.set(0, 30, 50);
-  camera.lookAt(0, 0, 0);
+  // カメラ位置は CameraController が管理
 
   // ── レンダラー ──
   const renderer = new THREE.WebGLRenderer({ antialias: true });
