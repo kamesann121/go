@@ -10,12 +10,12 @@ export class Ball {
     this.isMoving = false;
 
     // 物理パラメータ
-    this.gravity = -20;          // 重力（少し弱く）
-    this.friction = 0.98;        // 滑り摩擦
-    this.rollFriction = 0.985;   // 転がり摩擦（少し強く）
-    this.bounceDamping = 0.4;    // バウンス減衰（少し強く）
+    this.gravity = -20;
+    this.friction = 0.98;
+    this.rollFriction = 0.985;
+    this.bounceDamping = 0.4;
     this.radius = 0.2;
-    this.minVelocity = 0.05;     // 停止判定の閾値
+    this.minVelocity = 0.05;
 
     // 初期位置
     this.startPos = new THREE.Vector3(
@@ -23,6 +23,9 @@ export class Ball {
       1,
       COURSE_CONFIG.startOffset.z
     );
+    
+    // 実際の物理位置（mesh.position とは独立）
+    this.physicsPosition = this.startPos.clone();
   }
 
   async load() {
@@ -32,10 +35,9 @@ export class Ball {
         '/models/golfball.glb',
         (gltf) => {
           this.mesh = gltf.scene;
-          this.mesh.scale.set(0.015, 0.015, 0.015); // サイズ調整（大幅縮小）
+          this.mesh.scale.set(0.015, 0.015, 0.015);
           this.mesh.position.copy(this.startPos);
 
-          // 影を投げるように設定
           this.mesh.traverse((child) => {
             if (child.isMesh) {
               child.castShadow = true;
@@ -56,7 +58,6 @@ export class Ball {
     });
   }
 
-  // GLBが読み込めない場合のフォールバック
   _createFallbackBall() {
     const geo = new THREE.SphereGeometry(this.radius, 32, 32);
     const mat = new THREE.MeshLambertMaterial({ color: 0xffffff });
@@ -67,37 +68,35 @@ export class Ball {
   }
 
   reset() {
+    this.physicsPosition.copy(this.startPos);
     this.mesh.position.copy(this.startPos);
+    this.mesh.rotation.set(0, 0, 0);
     this.velocity.set(0, 0, 0);
     this.isMoving = false;
   }
 
-  // ショットを発射する
   shoot(direction, power) {
     if (this.isMoving) return;
-    // directionは正規化済みのVector3、powerは 0~1
-    const force = 60 * power; // 最大フォース
+    const force = 60 * power;
     this.velocity.set(
       direction.x * force,
-      direction.y * force + 3, // 少し上に
+      direction.y * force + 3,
       direction.z * force
     );
     this.isMoving = true;
   }
 
-  // ホールに入ったか判定
   checkHole() {
     const hx = COURSE_CONFIG.holeOffset.x;
     const hz = COURSE_CONFIG.holeOffset.z;
-    const dx = this.mesh.position.x - hx;
-    const dz = this.mesh.position.z - hz;
+    const dx = this.physicsPosition.x - hx;
+    const dz = this.physicsPosition.z - hz;
     const dist = Math.sqrt(dx * dx + dz * dz);
     return dist < COURSE_CONFIG.holeRadius + this.radius * 0.5 && !this.isMoving;
   }
 
-  // 範囲外に出たか判定
   isOutOfBounds() {
-    const p = this.mesh.position;
+    const p = this.physicsPosition;
     const half = COURSE_CONFIG.width / 2;
     return (
       p.x < -half || p.x > half ||
@@ -106,77 +105,76 @@ export class Ball {
     );
   }
 
-  // 物理シミュレーション更新
   update(dt, getHeight, walls) {
     if (!this.isMoving) return;
-
-    const pos = this.mesh.position;
 
     // 重力
     this.velocity.y += this.gravity * dt;
 
-    // 位置更新
-    pos.x += this.velocity.x * dt;
-    pos.y += this.velocity.y * dt;
-    pos.z += this.velocity.z * dt;
+    // 位置更新（物理位置を使う）
+    this.physicsPosition.x += this.velocity.x * dt;
+    this.physicsPosition.y += this.velocity.y * dt;
+    this.physicsPosition.z += this.velocity.z * dt;
 
-    // 壁との衝突判定（インポートが必要）
+    // 壁との衝突判定
     if (walls && walls.length > 0) {
-      // checkWallCollision を course.js からインポートして使う
-      // ここでは簡易版を実装
       for (const wall of walls) {
         if (!wall.userData || !wall.userData.box) continue;
         
         const ballBox = new THREE.Box3(
-          new THREE.Vector3(pos.x - this.radius, pos.y - this.radius, pos.z - this.radius),
-          new THREE.Vector3(pos.x + this.radius, pos.y + this.radius, pos.z + this.radius)
+          new THREE.Vector3(
+            this.physicsPosition.x - this.radius,
+            this.physicsPosition.y - this.radius,
+            this.physicsPosition.z - this.radius
+          ),
+          new THREE.Vector3(
+            this.physicsPosition.x + this.radius,
+            this.physicsPosition.y + this.radius,
+            this.physicsPosition.z + this.radius
+          )
         );
         
         if (wall.userData.box.intersectsBox(ballBox)) {
-          // 壁の中心
           const wallCenter = new THREE.Vector3();
           wall.userData.box.getCenter(wallCenter);
           
-          // 反射方向
-          const normal = new THREE.Vector3().subVectors(pos, wallCenter);
+          const normal = new THREE.Vector3().subVectors(this.physicsPosition, wallCenter);
           normal.y = 0;
           normal.normalize();
           
-          // 反射
           const dot = this.velocity.dot(normal);
           this.velocity.x -= 2 * dot * normal.x;
           this.velocity.z -= 2 * dot * normal.z;
-          this.velocity.multiplyScalar(0.75); // エネルギー損失
+          this.velocity.multiplyScalar(0.75);
           
-          // 押し出し
-          pos.add(normal.multiplyScalar(0.3));
+          this.physicsPosition.add(normal.multiplyScalar(0.3));
         }
       }
     }
 
     // 地面との衝突
-    const groundY = getHeight(pos.x, pos.z) + this.radius;
+    const groundY = getHeight(this.physicsPosition.x, this.physicsPosition.z) + this.radius;
 
-    if (pos.y <= groundY) {
-      pos.y = groundY;
+    if (this.physicsPosition.y <= groundY) {
+      this.physicsPosition.y = groundY;
 
-      // バウンス
       if (Math.abs(this.velocity.y) > 0.5) {
         this.velocity.y *= -this.bounceDamping;
       } else {
         this.velocity.y = 0;
       }
 
-      // 地面にいる時は摩擦を適用
       this.velocity.x *= this.rollFriction;
       this.velocity.z *= this.rollFriction;
     } else {
-      // 空中では空気抵抗
       this.velocity.x *= this.friction;
       this.velocity.z *= this.friction;
     }
 
-    // 転がりアニメーション
+    // メッシュ位置を物理位置に同期
+    this.mesh.position.copy(this.physicsPosition);
+
+    // 転がりアニメーション（メッシュの回転のみ、位置には影響なし）
     const speed = Math.sqrt(this.velocity.x ** 2 + this.velocity.z ** 2);
     if (speed > 0.01) {
       const axis = new THREE.Vector3(-this.velocity.z, 0, this.velocity.x).normalize();
@@ -184,11 +182,12 @@ export class Ball {
       this.mesh.rotateOnWorldAxis(axis, angle);
     }
 
-    // 停止判定（速度が十分小さく、地面にいる）
+    // 停止判定
     const totalSpeed = this.velocity.length();
-    if (totalSpeed < this.minVelocity && Math.abs(pos.y - groundY) < 0.01) {
+    if (totalSpeed < this.minVelocity && Math.abs(this.physicsPosition.y - groundY) < 0.01) {
       this.velocity.set(0, 0, 0);
-      pos.y = groundY;
+      this.physicsPosition.y = groundY;
+      this.mesh.position.copy(this.physicsPosition);
       this.isMoving = false;
     }
   }
