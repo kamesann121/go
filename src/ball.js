@@ -31,7 +31,7 @@ export class Ball {
         '/models/golfball.glb',
         (gltf) => {
           this.mesh = gltf.scene;
-          this.mesh.scale.set(0.4, 0.4, 0.4); // サイズ調整
+          this.mesh.scale.set(0.015, 0.015, 0.015); // サイズ調整（大幅縮小）
           this.mesh.position.copy(this.startPos);
 
           // 影を投げるように設定
@@ -47,7 +47,7 @@ export class Ball {
         },
         undefined,
         (err) => {
-          console.warn('golfball.glb の読み込みに失敗。フォールバックボールを使用します。');
+          console.warn('球体モデルの読み込みに失敗。フォールバックを使用します。');
           this._createFallbackBall();
           resolve();
         }
