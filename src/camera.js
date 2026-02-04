@@ -24,15 +24,41 @@ export class CameraController {
 
   // ── マウス ──
   _bindMouseEvents() {
-    // マウス操作は input.js が担当するので、カメラ側では何もしない
-    // ただしスクロールでのズームは残す
     const canvas = document.querySelector('canvas');
     if (!canvas) return;
+
+    // 右クリックドラッグでカメラ回転
+    canvas.addEventListener('mousedown', (e) => {
+      if (e.button === 2) { // 右クリック
+        this.isDragging = true;
+        this.prevMouse.x = e.clientX;
+        this.prevMouse.y = e.clientY;
+      }
+    });
+    
+    canvas.addEventListener('mousemove', (e) => {
+      if (!this.isDragging) return;
+      this._applyOrbit(e.clientX - this.prevMouse.x, e.clientY - this.prevMouse.y);
+      this.prevMouse.x = e.clientX;
+      this.prevMouse.y = e.clientY;
+    });
+    
+    canvas.addEventListener('mouseup', () => { this.isDragging = false; });
+    canvas.addEventListener('mouseleave', () => { this.isDragging = false; });
 
     canvas.addEventListener('wheel', (e) => {
       e.preventDefault();
       this._applyZoom(e.deltaY * 0.04);
     }, { passive: false });
+    
+    // 矢印キーでカメラ回転
+    window.addEventListener('keydown', (e) => {
+      const speed = 3;
+      if (e.key === 'ArrowLeft') this.spherical.theta -= 0.05;
+      if (e.key === 'ArrowRight') this.spherical.theta += 0.05;
+      if (e.key === 'ArrowUp') this.spherical.phi = Math.max(0.2, this.spherical.phi - 0.05);
+      if (e.key === 'ArrowDown') this.spherical.phi = Math.min(Math.PI / 2.2, this.spherical.phi + 0.05);
+    });
   }
 
   // ── タッチ ──
