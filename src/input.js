@@ -6,8 +6,8 @@ export class InputController {
     this.club = club;
     this.camera = camera;
 
-    // エイム方向
-    this.aimAngle = Math.PI;
+    // エイム方向（カメラ基準の前方向）
+    this.aimDirection = new THREE.Vector3(0, 0, -1);
 
     // パワー
     this.power = 0;
@@ -31,50 +31,62 @@ export class InputController {
     this._bindTouchEvents();
   }
 
-  // ── キーボード操作（デスクトップ）──
+  // ── キーボード操作 ──
   _bindKeyboardEvents() {
     window.addEventListener('keydown', (e) => {
       const key = e.key.toLowerCase();
       
-      // A → 視点固定トグル
       if (key === 'a') {
         this.isViewLocked = !this.isViewLocked;
         console.log(`視点固定: ${this.isViewLocked ? 'ON' : 'OFF'}`);
       }
       
-      // S → チャージ開始
       if (key === 's' && !this.ball.isMoving && !this.isCharging) {
         this.isCharging = true;
         this.chargingUp = true;
         this.power = 0;
       }
       
-      // D → ショット発火
       if (key === 'd' && this.isCharging) {
         this._fireShot();
       }
     });
   }
 
-  // ── マウス操作（視点移動用）──
+  // ── マウス操作 ──
   _bindMouseEvents() {
     const canvas = document.querySelector('canvas');
     if (!canvas) return;
 
     canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 
-    // マウス移動でエイム角を更新（視点固定されていない時のみ）
+    // マウス移動で「カメラが見ている方向」を基準にエイム方向を更新
     canvas.addEventListener('mousemove', (e) => {
       if (this.ball.isMoving || this.isViewLocked) return;
       
       const rect = canvas.getBoundingClientRect();
-      const mx = e.clientX - rect.left - rect.width / 2;
-      const mz = e.clientY - rect.top  - rect.height / 2;
-      this.aimAngle = Math.atan2(mx, mz) + this.camera.spherical.theta + Math.PI;
+      const mx = (e.clientX - rect.left) / rect.width * 2 - 1;
+      const mz = -((e.clientY - rect.top) / rect.height * 2 - 1);
+      
+      // カメラの向きベクトル
+      const camDir = new THREE.Vector3();
+      this.camera.camera.getWorldDirection(camDir);
+      camDir.y = 0; // 水平成分のみ
+      camDir.normalize();
+      
+      // カメラの右ベクトル
+      const camRight = new THREE.Vector3();
+      camRight.crossVectors(camDir, new THREE.Vector3(0, 1, 0)).normalize();
+      
+      // マウス位置に応じてエイム方向を調整
+      this.aimDirection.copy(camDir)
+        .add(camRight.multiplyScalar(mx * 0.5));
+      this.aimDirection.y = 0;
+      this.aimDirection.normalize();
     });
   }
 
-  // ── タッチ操作（モバイル）──
+  // ── タッチ操作 ──
   _bindTouchEvents() {
     const canvas = document.querySelector('canvas');
     if (!canvas) return;
@@ -86,7 +98,6 @@ export class InputController {
         this._touchCount++;
       }
 
-      // 2指 → チャージ開始
       if (this._touchCount >= 2 && !this.ball.isMoving && !this.isCharging) {
         this.isCharging  = true;
         this.chargingUp  = true;
@@ -101,13 +112,24 @@ export class InputController {
         this._activeTouches[t.identifier] = { x: t.clientX, y: t.clientY };
       }
       
-      // 1指 かつ 視点固定されていない → エイム更新
       if (this._touchCount === 1 && !this.ball.isMoving && !this.isViewLocked) {
         const t = e.changedTouches[0];
         const rect = canvas.getBoundingClientRect();
-        const mx = t.clientX - rect.left  - rect.width / 2;
-        const mz = t.clientY - rect.top   - rect.height / 2;
-        this.aimAngle = Math.atan2(mx, mz) + this.camera.spherical.theta + Math.PI;
+        const mx = (t.clientX - rect.left) / rect.width * 2 - 1;
+        const mz = -((t.clientY - rect.top) / rect.height * 2 - 1);
+        
+        const camDir = new THREE.Vector3();
+        this.camera.camera.getWorldDirection(camDir);
+        camDir.y = 0;
+        camDir.normalize();
+        
+        const camRight = new THREE.Vector3();
+        camRight.crossVectors(camDir, new THREE.Vector3(0, 1, 0)).normalize();
+        
+        this.aimDirection.copy(camDir)
+          .add(camRight.multiplyScalar(mx * 0.5));
+        this.aimDirection.y = 0;
+        this.aimDirection.normalize();
       }
     }, { passive: false });
 
@@ -117,7 +139,6 @@ export class InputController {
         delete this._activeTouches[t.identifier];
         this._touchCount = Math.max(0, this._touchCount - 1);
 
-        // チャージ中の指が離れた → ショット発火
         if (this.isCharging && t.identifier === this.chargeStartId) {
           this._fireShot();
           this.chargeStartId = null;
@@ -146,13 +167,8 @@ export class InputController {
       return;
     }
 
-    const dir = new THREE.Vector3(
-      Math.sin(this.aimAngle),
-      0,
-      Math.cos(this.aimAngle)
-    ).normalize();
-
-    this.ball.shoot(dir, this.power);
+    // エイム方向をそのまま使う（正規化済み）
+    this.ball.shoot(this.aimDirection.clone(), this.power);
     this.power = 0;
     this._updatePowerUI();
     this.club.setVisible(false);
@@ -178,13 +194,17 @@ export class InputController {
       this._updatePowerUI();
     }
 
-    // クラブ＋エイムライン
+    // クラブ＋エイムライン（常にカメラの前方向に向ける）
     if (!this.ball.isMoving && this.ball.mesh) {
       this.club.setVisible(true);
-      const dir = new THREE.Vector3(
-        Math.sin(this.aimAngle), 0, Math.cos(this.aimAngle)
-      ).normalize();
-      this.club.update(this.ball.mesh.position, dir);
+      
+      // カメラが見ている方向を基準にクラブとエイムラインを配置
+      const camDir = new THREE.Vector3();
+      this.camera.camera.getWorldDirection(camDir);
+      camDir.y = 0;
+      camDir.normalize();
+      
+      this.club.update(this.ball.mesh.position, camDir);
     }
   }
 }
