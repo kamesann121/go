@@ -16,7 +16,10 @@ export class Club {
         '/models/golf.glb',
         (gltf) => {
           this.mesh = gltf.scene;
-          this.mesh.scale.set(0.5, 0.5, 0.5);
+          this.mesh.scale.set(0.02, 0.02, 0.02); // サイズ調整（大幅縮小）
+          
+          // ドライバーを立てる（モデルが横倒れの場合は回転）
+          this.mesh.rotation.x = -Math.PI / 2; // 90度回転で立たせる
 
           this.mesh.traverse((child) => {
             if (child.isMesh) {
@@ -30,7 +33,7 @@ export class Club {
         },
         undefined,
         () => {
-          console.warn('golf.glb の読み込みに失敗。フォールバッククラブを使用します。');
+          console.warn('棒状モデルの読み込みに失敗。フォールバックを使用します。');
           this._createFallbackClub();
           this._createAimLine();
           resolve();
