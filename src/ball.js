@@ -10,11 +10,12 @@ export class Ball {
     this.isMoving = false;
 
     // 物理パラメータ
-    this.gravity = -25;
-    this.friction = 0.995;       // 滑り摩擦
-    this.rollFriction = 0.992;   // 転がり摩擦
-    this.bounceDamping = 0.3;    // バウンス減衰
+    this.gravity = -20;          // 重力（少し弱く）
+    this.friction = 0.98;        // 滑り摩擦
+    this.rollFriction = 0.985;   // 転がり摩擦（少し強く）
+    this.bounceDamping = 0.4;    // バウンス減衰（少し強く）
     this.radius = 0.2;
+    this.minVelocity = 0.05;     // 停止判定の閾値
 
     // 初期位置
     this.startPos = new THREE.Vector3(
@@ -126,27 +127,32 @@ export class Ball {
       pos.y = groundY;
 
       // バウンス
-      if (this.velocity.y < -1) {
+      if (Math.abs(this.velocity.y) > 0.5) {
         this.velocity.y *= -this.bounceDamping;
       } else {
         this.velocity.y = 0;
       }
 
-      // 水平摩擦
+      // 地面にいる時は摩擦を適用
       this.velocity.x *= this.rollFriction;
       this.velocity.z *= this.rollFriction;
+    } else {
+      // 空中では空気抵抗
+      this.velocity.x *= this.friction;
+      this.velocity.z *= this.friction;
     }
 
-    // 転がりアニメーション（メッシュを回転させる）
-    const speed = this.velocity.length();
+    // 転がりアニメーション
+    const speed = Math.sqrt(this.velocity.x ** 2 + this.velocity.z ** 2);
     if (speed > 0.01) {
       const axis = new THREE.Vector3(-this.velocity.z, 0, this.velocity.x).normalize();
       const angle = (speed * dt) / this.radius;
       this.mesh.rotateOnWorldAxis(axis, angle);
     }
 
-    // 停止判定
-    if (speed < 0.15 && pos.y <= groundY + 0.05) {
+    // 停止判定（速度が十分小さく、地面にいる）
+    const totalSpeed = this.velocity.length();
+    if (totalSpeed < this.minVelocity && Math.abs(pos.y - groundY) < 0.01) {
       this.velocity.set(0, 0, 0);
       pos.y = groundY;
       this.isMoving = false;
