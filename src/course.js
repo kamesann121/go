@@ -91,11 +91,16 @@ export function createCourse(scene, seed = 42) {
   geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(colorArr), 3));
   geo.computeVertexNormals();
 
-  // ── マテリアル ──
-  const mat = new THREE.MeshLambertMaterial({
-    vertexColors: true,
-    side: THREE.DoubleSide,
+  // ── マテリアル（テクスチャ付き芝生） ──
+  const mat = new THREE.MeshStandardMaterial({
+    color: 0x4a7c3a,           // ベース芝色
+    roughness: 0.95,           // 粗さ（芝っぽく）
+    metalness: 0.0,            // 金属感なし
+    flatShading: false,
   });
+
+  // 頂点カラーも混ぜる（高さによる色変化を保持）
+  mat.vertexColors = true;
 
   const terrain = new THREE.Mesh(geo, mat);
   terrain.receiveShadow = true;
@@ -140,8 +145,20 @@ export function createCourse(scene, seed = 42) {
   return { terrain, holeMesh, pole, flag };
 }
 
-// 地形の高さを特定の (x, z) で取得する関数
+// 地形の高さを特定の (x, z) で取得する関数（Raycaster使用で正確）
 export function getTerrainHeight(terrain, x, z) {
+  const raycaster = new THREE.Raycaster();
+  const origin = new THREE.Vector3(x, 100, z); // 上から下に向かってレイを飛ばす
+  const direction = new THREE.Vector3(0, -1, 0);
+  
+  raycaster.set(origin, direction);
+  const intersects = raycaster.intersectObject(terrain);
+  
+  if (intersects.length > 0) {
+    return intersects[0].point.y;
+  }
+  
+  // レイが当たらなかった場合はフォールバック（最近傍探索）
   const pos = terrain.geometry.attributes.position;
   let closestDist = Infinity;
   let closestY = 0;
