@@ -16,7 +16,7 @@ export class Club {
         '/models/golf.glb',
         (gltf) => {
           this.mesh = gltf.scene;
-          this.mesh.scale.set(0.08, 0.08, 0.08); // 4倍に拡大
+          this.mesh.scale.set(0.08, 0.08, 0.08);
 
           this.mesh.traverse((child) => {
             if (child.isMesh) {
@@ -42,7 +42,7 @@ export class Club {
   _createFallbackClub() {
     const group = new THREE.Group();
 
-    // シャフト
+    // シャフト（縦）
     const shaftGeo = new THREE.CylinderGeometry(0.04, 0.04, 1.8, 8);
     const shaftMat = new THREE.MeshLambertMaterial({ color: 0x888888 });
     const shaft = new THREE.Mesh(shaftGeo, shaftMat);
@@ -73,30 +73,35 @@ export class Club {
     this.scene.add(this.aimLine);
   }
 
-  // クラブとエイムラインをボール周りに配置（エイム方向に完全一致）
+  // クラブをゴルフプレイヤーが持っている姿勢で配置
   update(ballPosition, aimDirection) {
     if (!this.mesh) return;
 
     this.aimDirection.copy(aimDirection).normalize();
 
-    // クラブの位置：ボールの後ろ＋少し上
-    const clubOffset = this.aimDirection.clone().multiplyScalar(-1.2);
+    // Y軸周りの角度（エイム方向）
+    const angleY = Math.atan2(this.aimDirection.x, this.aimDirection.z);
+
+    // クラブの位置：ボールの斜め後ろ（プレイヤーが立っている位置）
+    const clubOffset = this.aimDirection.clone().multiplyScalar(-2);
     this.mesh.position.set(
       ballPosition.x + clubOffset.x,
-      ballPosition.y + 0.5,  // 地面から少し浮かせる
+      ballPosition.y + 0.8,  // 地面より上（手の高さ）
       ballPosition.z + clubOffset.z
     );
 
-    // クラブの向き：エイム方向を向く
-    // Y軸周りの角度を計算
-    const angleY = Math.atan2(this.aimDirection.x, this.aimDirection.z);
+    // クラブの向き：縦に立てて、エイム方向を向く
+    this.mesh.rotation.set(0, 0, 0); // リセット
     
-    // クラブをリセットしてから正しい向きに
-    this.mesh.rotation.set(0, 0, 0);
+    // まず Y軸周りでエイム方向に回転
     this.mesh.rotation.y = angleY;
     
-    // 少し傾ける（ドライバーっぽく）
-    this.mesh.rotation.x = -0.3; // 前傾
+    // 次に X軸周りで傾ける（ゴルフスイングの角度）
+    // ドライバーを45度くらい前傾させる（プレイヤーが構えている感じ）
+    this.mesh.rotateOnAxis(new THREE.Vector3(1, 0, 0), Math.PI / 4);
+    
+    // Z軸周りで少し傾ける（自然な持ち方）
+    this.mesh.rotateOnAxis(new THREE.Vector3(0, 0, 1), -Math.PI / 12);
 
     // エイムライン更新
     if (this.aimLine) {
